@@ -1,259 +1,96 @@
 {
     "properties": {},
-    "description": "Pipeline Template for CSV",
+    "description": "Atlas Test",
     "processes": {
-        "writefile1": {
-            "component": "com.sap.file.write",
+        "openapiclient1": {
+            "component": "com.sap.openapi.client",
             "metadata": {
-                "label": "CSVData",
+                "label": "OpenAPI Client",
+                "x": 181,
+                "y": 12,
+                "height": 80,
+                "width": 120,
                 "generation": 1,
+                "ui": "dynpath",
                 "config": {
-                    "pathMode": "Static with placeholders",
-                    "path": "/DEV/<header:sysname>/SAP_${tableName}/<header:datetime>/data-<header:cnt>.csv",
-                    "mode": "Append",
+                    "connectionType": "connection",
                     "connection": {
-                        "configurationType": "Connection Management",
-                        "connectionID": "S3_UDH"
+                        "configurationType": "Configuration Manager",
+                        "connectionID": "AtlasCloud"
                     },
-                    "joinBatches": false
+                    "basePath": "/fin-dev-pipeline-manager/flow/v1/start",
+                    "method": "POST",
+                    "useCsrfToken": false,
+                    "produces": "application/json",
+                    "responseHeadersFormat": "single value",
+                    "consumes": "application/json"
                 }
             }
         },
-        "tofile1": {
-            "component": "com.sap.file.toFile",
+        "wiretap1": {
+            "component": "com.sap.util.wiretap",
             "metadata": {
-                "label": "To File",
+                "label": "Wiretap",
+                "x": 350,
+                "y": 12,
+                "height": 80,
+                "width": 120,
                 "generation": 1,
+                "ui": "dynpath",
                 "config": {}
             }
         },
-        "graphterminator1": {
-            "component": "com.sap.util.graphTerminator",
+        "python3operator1": {
+            "component": "com.sap.system.python3Operator",
             "metadata": {
-                "label": "Graph Terminator",
-                "generation": 1,
-                "config": {}
-            }
-        },
-        "writefile2": {
-            "component": "com.sap.file.write",
-            "metadata": {
-                "label": "SuccessFile",
-                "generation": 1,
-                "config": {
-                    "connection": {
-                        "configurationType": "Connection Management",
-                        "connectionID": "S3_UDH"
-                    },
-                    "pathMode": "Dynamic (from input)",
-                    "mode": "Overwrite"
-                }
-            }
-        },
-        "tofile2": {
-            "component": "com.sap.file.toFile",
-            "metadata": {
-                "label": "To File",
-                "generation": 1,
-                "config": {}
-            }
-        },
-        "abapodpreader1": {
-            "component": "com.sap.abap.odp.reader",
-            "metadata": {
-                "label": "ABAP ODP Reader V2",
-                "extensible": true,
-                "generation": 1,
-                "config": {
-                    "connectionID": "ECC",
-                    "operatorID": "com.sap.abap.odp.reader.v2",
-                    "subscriptionType": "New",
-                    "context": "ODP_SAPI",
-                    "extractionMode": "FULL",
-                    "odpname": "0MATERIAL_ATTR",
-                    "subscriptionName": "SAP_MATERIAL_ATTR_1"
-                },
-                "additionaloutports": [
-                    {
-                        "name": "outMessageData",
-                        "type": "message"
-                    }
-                ]
-            }
-        },
-        "writefile3": {
-            "component": "com.sap.file.write",
-            "metadata": {
-                "label": "ManifestFile",
-                "generation": 1,
-                "config": {
-                    "pathMode": "Static with placeholders",
-                    "mode": "Overwrite",
-                    "connection": {
-                        "configurationType": "Connection Management",
-                        "connectionID": "S3_UDH"
-                    },
-                    "path": "/DEV/<header:sysname>/SAP_${tableName}/<header:datetime>/_manifest.json"
-                }
-            }
-        },
-        "tofile3": {
-            "component": "com.sap.file.toFile",
-            "metadata": {
-                "label": "To File",
-                "generation": 1,
-                "config": {}
-            }
-        },
-        "csvgenv31": {
-            "component": "CSVGeneratorv3",
-            "metadata": {
-                "label": "CSV Gen V3",
+                "label": "Body - JSON raw format",
+                "x": 12,
+                "y": 12,
+                "height": 80,
+                "width": 120,
                 "extensible": true,
                 "filesRequired": [
                     "script.py"
                 ],
                 "generation": 1,
                 "config": {
-                    "script": "from io import StringIO\r\nimport io\r\nfrom datetime import datetime\r\nimport csv\r\nimport pandas as pd\r\nimport json\r\nimport sys\r\nimport pytz\r\n\r\nsize = 0\r\ndatafilecounter = 1\r\nmultiplier = 1.0\r\nfilekblimit = int(\"0\" if(not api.config.maxfilesize) else api.config.maxfilesize) * multiplier * 1024 * 1024\r\nbatchcounter = -1\r\ncol = []\r\ncol_derived = []\r\nattr = {}\r\ntimeZ_CE = pytz.timezone('US/Central')\r\ninitial_datetime = datetime.now(timeZ_CE)\r\nlastbatch_datetime = datetime.now(timeZ_CE)\r\ninitial_datetime_formatted = initial_datetime.strftime('%Y%m%d_%H%M%S')\r\nlastBatch = False\r\nduration_secs = int(\"15\" if(not api.config.duration) else api.config.duration) * 60\r\nmanifest = []\r\ncsv_rownum = 0\r\ndata_available = False\r\n\r\ndef result_datatype_metadata(tot_length,type,decimals):\r\n    if(type in [\"RAW\",\"LRAW\",\"CHAR\",\"NUMC\",\"UNIT\",\"CUKY\",\"LCHR\",\"STRING\",\"RAWSTRING\",\"ACCP\",\"CLNT\",\"LANG\"]):\r\n        return \"VARCHAR\" + \"(\" + str(int(tot_length)) + \")\" \r\n    elif(type in [\"DEC\", \"FLTP\",\"QUAN\",\"CURR\"]):\r\n        if(int(decimals)==0):\r\n            return \"VARCHAR\" + \"(\" + str(int(tot_length)) + \")\"\r\n        else:\r\n            return \"DECIMAL\" + \"(\" + str(int(tot_length)) + \",\" + str(int(decimals)) + \")\"\r\n    elif(type in [\"INT4\",\"INT1\",\"INT2\"]):\r\n        return \"INTEGER\"\r\n    elif(type == \"DATS\"):\r\n        return \"VARCHAR(10)\"\r\n    elif(type == \"TIMS\"):\r\n        return \"VARCHAR(8)\"\r\n    else:\r\n        return \"NA\"\r\n        \r\ndef add_to_manifest(position,colname,datatype):\r\n    global manifest\r\n    \r\n    colname = colname.replace(\"/\",\"_\")\r\n    dict_load_date = {\r\n            \"Order\": position,\r\n            \"name\": '_'+colname if(colname[0].isdigit()) else colname,\r\n            \"originalName\": colname,\r\n            \"genericType\": datatype,\r\n            \"typeDomain\": api.config.sourcesystem\r\n        } \r\n    manifest.append(dict_load_date)\r\n\r\ndef generate_manifest(inAttr):\r\n    global manifest\r\n    global col\r\n    global col_derived\r\n    \r\n    # Defining column list from Metadata Section\r\n    cntr = 1\r\n    ABAPKEY = inAttr['metadata']\r\n    for i in ABAPKEY:\r\n        name = i['Field']['COLUMNNAME'].replace(\"/\",\"_\")\r\n        dict1 = {\r\n            \"Order\": cntr,\r\n            \"name\": '_'+name if(name[0].isdigit()) else name,\r\n            \"originalName\": i['Field']['COLUMNNAME'],\r\n            \"genericType\": result_datatype_metadata(i['Field']['ABAPLEN'], i['Field']['ABAPTYPE'],i['Field']['DECIMALS']),\r\n            \"typeDomain\": api.config.sourcesystem\r\n        }\r\n        manifest.append(dict1)\r\n        cntr += 1\r\n    # Adding additional attributes to manifest file\r\n    add_to_manifest(cntr,\"EXTRACT_DATE\",\"DATE(10)\")\r\n    cntr += 1\r\n    add_to_manifest(cntr,\"ROW_INDEX\",\"INTEGER\")\r\n\r\n    for i in manifest:\r\n        col_derived.append(i['name'])\r\n    \r\n    outDict = {\r\n            \"structure\": manifest\r\n        }  \r\n    app_json = json.dumps(outDict)\r\n    api.send(\"outManifest\",api.Message(app_json, inAttr))\r\n    \r\ndef data_profiling(inDF):\r\n    global attr\r\n    \r\n    if('header' in attr.keys()):\r\n        inDF['ODQ_CHANGEMODE'] = \"U\"\r\n    else:\r\n        # Nullify Invalid date values\r\n        if('ODQ_CHANGEMODE' in inDF.columns):\r\n            inDF['ODQ_CHANGEMODE'].fillna(\"U\", inplace = True)\r\n            #Replace new image C values with U\r\n            inDF.loc[inDF['ODQ_CHANGEMODE']== \"C\", \"ODQ_CHANGEMODE\"] = \"U\"\r\n            # Drop before image rows\r\n            # inDF.drop(inDF[(inDF.ODQ_CHANGEMODE == \"U\") & (inDF.ODQ_ENTITYCNTR == str(-1))].index, inplace = True)\r\n    if('IUUC_OPERATION' in inDF.columns):\r\n        inDF['IUUC_OPERATION'].fillna(\"U\", inplace = True)\r\n        #Replace new image C values with U\r\n        inDF.loc[inDF['IUUC_OPERATION']== \"I\", \"IUUC_OPERATION\"] = \"U\"\r\n    return inDF\r\n\r\ndef generateRuntime():  \r\n    global initial_datetime\r\n    global lastbatch_datetime\r\n    \r\n    start_time = initial_datetime.strftime(\"%m/%d/%Y %H:%M:%S\")\r\n    end_time = lastbatch_datetime.strftime(\"%m/%d/%Y %H:%M:%S\")\r\n    dur = (lastbatch_datetime - initial_datetime).total_seconds()\r\n    duration_formatted = '{:02}:{:02}:{:02}'.format(round(dur // 3600), round(dur % 3600 // 60), int(dur % 60))\r\n    runtime = \",\".join([api.config.sourcesystem,api.config.tableName,initial_datetime_formatted,start_time,end_time,str(duration_formatted) ,str(csv_rownum)])\r\n    runtime += \"\\n\"\r\n    api.send(\"outRuntime\",runtime)\r\n    \r\ndef generateSuccess():\r\n    # Call function to update runtime information \r\n    generateRuntime()\r\n    \r\n    # To generate success file\r\n    path =  '/DEV/' + api.config.sourcesystem + '/SAP_' + api.config.tableName + '/' + str(initial_datetime_formatted) + '/_SUCCESS'\r\n    api.send(\"outlastBatch\", api.Message(path))\r\n    \r\ndef stopGraph():\r\n    api.send(\"outlastBatch\", \" \")\r\n\r\ndef generatecsvdf(inData):\r\n    global col\r\n    global col_derived\r\n    global csv_rownum\r\n\r\n    df = pd.read_csv(inData, index_col=False, names=col, dtype = 'str')\r\n    df = data_profiling(df)\r\n    df['EXTRACT_DATE'] = initial_datetime.date()\r\n    csv_rownum += 1\r\n    df['ROW_INDEX'] = df.reset_index().index + csv_rownum\r\n    csv_rownum = df['ROW_INDEX'].max()\r\n    df.columns = col_derived\r\n    return df\r\n    \r\ndef on_input(inData):\r\n    global size\r\n    global datafilecounter\r\n    global filekblimit\r\n    global batchcounter\r\n    global col\r\n    global col_derived\r\n    global initial_datetime\r\n    global manifest\r\n    global lastBatch\r\n    global lastbatch_datetime\r\n    global attr\r\n    global csv_rownum\r\n    global data_available\r\n\r\n    #Variable Initializations \r\n    body = inData.body\r\n    attr = inData.attributes\r\n    batchcounter = attr['message.batchIndex']\r\n    data = StringIO(body)\r\n    attr['datetime'] = str(initial_datetime_formatted)\r\n    attr['sysname'] = api.config.sourcesystem\r\n    if(filekblimit == 0):\r\n        filekblimit = 300 * multiplier * 1024 * 1024\r\n    \r\n    if('message.lastBatch' in attr.keys()):\r\n        lastBatch = attr['message.lastBatch']\r\n \r\n    #In case of Valid source data with content  \r\n    if(body):\r\n        #Set data_available flag when there is data available to fetch\r\n        data_available = True\r\n        #Getting the columns names from Attributes into col\r\n        if(batchcounter == 0):\r\n            if('ABAP' in attr.keys()):\r\n                ABAPKEY = attr['ABAP']\r\n                for columnname in ABAPKEY['Fields']:\r\n                    col.append(columnname['Name'])\r\n                #To Generate manifest.json file in the target directory\r\n                generate_manifest(attr)\r\n            else:\r\n                col = attr['header'].split(',')\r\n                for i in range(len(col)):\r\n                    name = col[i].replace(\"/\",\"_\")\r\n                    name = '_'+name if(name[0].isdigit()) else name\r\n                    name = name.replace(\"\\r\",\"\").replace(\"\\n\",\"\")\r\n                    col_derived.append(name)\r\n                col_derived.append('EXTRACT_DATE')\r\n                col_derived.append('ROW_INDEX')\r\n             \r\n    \r\n        #Logic Implementation\r\n        #Define Dataframe out of incoming data\r\n        df = generatecsvdf(data)\r\n        \r\n        #Convert dataframe to CSV file for outgoing message\r\n        df_csv = df.to_csv(index=False, header = True, sep = '\\x01' )\r\n        \r\n        # Get the size of csv file post conversion\r\n        size += sys.getsizeof(df_csv)\r\n        \r\n        if(batchcounter == 0):\r\n            attr['cnt'] = str(datafilecounter)\r\n        elif(size >= filekblimit):\r\n            datafilecounter += 1\r\n            attr['cnt'] = str(datafilecounter)\r\n            size = sys.getsizeof(str(body))\r\n        else:\r\n            attr['cnt'] = str(datafilecounter)\r\n            # Disable header for appending case\r\n            df_csv = df.to_csv(index=False, header = False, sep = '\\x01')\r\n        \r\n        #Send the datafile to output ports    \r\n        api.send(\"outCSV\", api.Message(attributes=attr, body=df_csv))\r\n        \r\n        #initialize lastbatch_datetime\r\n        lastbatch_datetime = datetime.now(timeZ_CE)\r\n        \r\n    #Send the signal in case of last batch\r\n    if(lastBatch):\r\n        if(data_available):\r\n            #Success file generation and sending last batch signal\r\n            generateSuccess()\r\n        else:\r\n            stopGraph()\r\n    \r\n\r\napi.set_port_callback(\"inSourceData\", on_input)\r\n\r\ndef timer():\r\n    global lastbatch_datetime\r\n    global datafilecounter\r\n    global data_available\r\n    \r\n    diff = datetime.now(timeZ_CE) - lastbatch_datetime\r\n    actual_duration = diff.total_seconds()\r\n    if(actual_duration >= duration_secs):\r\n        if(data_available):\r\n            #Success file generation and sending last batch signal\r\n            generateSuccess()\r\n        else:\r\n            stopGraph()\r\n\r\napi.add_timer(\"3m\",timer)\r\n"
-                }
-            }
-        },
-        "writefile4": {
-            "component": "com.sap.file.write",
-            "metadata": {
-                "label": "RuntimeFile",
-                "generation": 1,
-                "config": {
-                    "connection": {
-                        "configurationType": "Connection Management",
-                        "connectionID": "S3_UDH"
-                    },
-                    "pathMode": "Static (from configuration)",
-                    "path": "/DEV/RUNTIME_INFO.csv",
-                    "mode": "Append"
-                }
-            }
-        },
-        "tofile4": {
-            "component": "com.sap.file.toFile",
-            "metadata": {
-                "label": "To File",
-                "generation": 1,
-                "config": {}
+                    "script": "import json\n\n# def on_input(inData):\n#     out = {\n#         \"layer\": \"D0\",\n#         \"namespace\": \"SAP_ECC\",\n#         \"group\": \"SAP_0MATERIAL_ATTR\"\n#     }\n    \n#     out_json = json.dumps(out)\n#     api.send(\"outBody\", api.Message(out_json))\n\n# api.set_port_callback(\"inTrigger\",on_input)\nout = {\n        \"layer\": \"D0\",\n        \"namespace\": \"SAP_ECC\",\n        \"group\": \"SAP_0MATERIAL_ATTR\",\n        \"force\": False\n    }\nattr = {\n    'openapi.header.authorization' : 'Bearer 0001tVriboNHO9zcmta0ro7scN60'\n}\n# out_attr = json.dumps(attr)\n    \nout_json = json.dumps(out)\napi.send(\"outBody\", api.Message(body = out_json))"
+                },
+                "additionaloutports": [
+                    {
+                        "name": "outBody",
+                        "type": "message"
+                    }
+                ]
             }
         }
     },
     "groups": [],
     "connections": [
         {
-            "metadata": {},
-            "src": {
-                "port": "file",
-                "process": "tofile1"
+            "metadata": {
+                "points": "305,52 345,52"
             },
-            "tgt": {
-                "port": "file",
-                "process": "writefile1"
-            }
-        },
-        {
-            "metadata": {},
             "src": {
-                "port": "file",
-                "process": "writefile2"
-            },
-            "tgt": {
-                "port": "stop",
-                "process": "graphterminator1"
-            }
-        },
-        {
-            "metadata": {},
-            "src": {
-                "port": "file",
-                "process": "tofile2"
-            },
-            "tgt": {
-                "port": "file",
-                "process": "writefile2"
-            }
-        },
-        {
-            "metadata": {},
-            "src": {
-                "port": "file",
-                "process": "tofile3"
-            },
-            "tgt": {
-                "port": "file",
-                "process": "writefile3"
-            }
-        },
-        {
-            "metadata": {},
-            "src": {
-                "port": "outCSV",
-                "process": "csvgenv31"
+                "port": "out",
+                "process": "openapiclient1"
             },
             "tgt": {
                 "port": "in",
-                "process": "tofile1"
+                "process": "wiretap1"
             }
         },
         {
-            "metadata": {},
-            "src": {
-                "port": "outlastBatch",
-                "process": "csvgenv31"
+            "metadata": {
+                "points": "136,52 176,52"
             },
-            "tgt": {
-                "port": "path",
-                "process": "tofile2"
-            }
-        },
-        {
-            "metadata": {},
             "src": {
-                "port": "outManifest",
-                "process": "csvgenv31"
+                "port": "outBody",
+                "process": "python3operator1"
             },
             "tgt": {
                 "port": "in",
-                "process": "tofile3"
-            }
-        },
-        {
-            "metadata": {},
-            "src": {
-                "port": "outMessageData",
-                "process": "abapodpreader1"
-            },
-            "tgt": {
-                "port": "inSourceData",
-                "process": "csvgenv31"
-            }
-        },
-        {
-            "metadata": {},
-            "src": {
-                "port": "outRuntime",
-                "process": "csvgenv31"
-            },
-            "tgt": {
-                "port": "in",
-                "process": "tofile4"
-            }
-        },
-        {
-            "metadata": {},
-            "src": {
-                "port": "file",
-                "process": "tofile4"
-            },
-            "tgt": {
-                "port": "file",
-                "process": "writefile4"
+                "process": "openapiclient1"
             }
         }
     ],
