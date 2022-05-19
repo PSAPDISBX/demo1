@@ -1,6 +1,6 @@
 {
     "properties": {},
-    "description": "DATA MASK",
+    "description": "DATA MASK UPDATED",
     "processes": {
         "writefile1": {
             "component": "com.sap.file.write",
